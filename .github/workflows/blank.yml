@@ -1,0 +1,75 @@
+#!/bin/sh
+
+DEVICE_NAME='tv45'
+DEVICE_HOST='192.168.0.114'
+DEVICE_PORT='9922'
+DEVICE_USERNAME='prisoner'
+DEVICE_PASSPHRASE='BDBF95'
+
+PRIV_KEY_FILE="/tmp/webos_privkey_${DEVICE_NAME}"
+
+cat >"${PRIV_KEY_FILE}" <<END_OF_PRIVKEY
+-----BEGIN RSA PRIVATE KEY-----
+Proc-Type: 4,ENCRYPTED
+DEK-Info: AES-128-CBC,1C5EDAB09652216A1FE9A6F40F96CB6D
+
+l7BI0rZ04WaUFwpuZsCqV8iRbb7ku8tHmyvGrqdS6+4LdWATeLpPZSIQBpUkr31a
+NWQDv7XRDBcUj2Pd9WPUuVAkUgRnSkPcYUCQl71JqD7gCRHCCIABUnDvx86gq0O+
+VzJrFFkkrkVeT+EvHW+ZGIILs6RLJxmllCgnhWKus3RxBx6KQ89jyEjO+ElsnksR
+aZscHTY0PavG7S63ubjDekhdwZcZpxZDO64fSx2VZJ1BqHfrkr2lpnaAQZXUTaLh
+OVH4EqH5e/+CE+41BcOOGP4/Ta4v4DO2rMmekqz2Fn8GoDO0hxN6RifeHlcBAVA+
+rSnR5EM34wwdcrgUjjafATo/295/dYQH6QRmyZTiedRTjvA2XAVn+1BnmP3prnT+
+iWlXzPx3x+5tihH233NdbvPUIcOaKDBJ8Tgx47ZATX722d9xeV+Eu/4LapszUNbT
+WgJv/oDcm8LRigzovzvL4MhoL54zIBAneL6fS6X3wEeQLT/Edeb7iAqUju4Sbk4F
+ATU5u7GPlUh7OLV/a2Cl3LhooFUjey0EmnUPhDj7P5arz4biPTjwytXHRCppQuhr
+5BDR+sJgjYBozc/+DkDbAXv/m21COHLTHozj4210Mnw99BIz6YN8JnMLJZxQ7Mg9
+vzJy5kiXqbVvyILIBrnIqZ3C5UM/ItSNZcxpVcM7BILnZN9wF2nXdheXUT+5tQIq
+O/cXfnuzwHw4ehB5nXeDLrTKYs1Akh+gKAO2kK1//1Ihlu9fGVXPKD4GHY0YQ/0f
+l3DmaXkgxO9WfvXgodgXP0dxqjlzReY7xQEvk12HBN4QBIhYZIAiFl9CPlh7M0mv
+05GwYu9TL3wnM6lxc2Bw3Lz15u6Rwn1wOg09+AVmag5CsWdBBVIN2U+/9PCV9cgG
+D7ZgvPmQ4N2mHLTmvwoJIlTjml4y/vLxVlhFWYE9OUvl8kekH8bMW9Cj56fZPwZE
+gV1LRT9QDknSRXPMQsAqKzUHgFSWArxepNvTunVGKWGkwUp5ZdVzx5/osDukg+56
+9yS+WD9FI3wpcuzKfqpEXFen1KMm3KZ2ha2XSthMvxxfDwu7XobgSEVo8v0g9EJE
+qe9rzdTT4MSbX/gNKAkDVqt2fACOc6moM5j3bZ2kSe44Cda0B2DLO/EFPLHwlsp/
+hYnbNcxj3O3CCljxnKw/51mnahUC3H3QN46HkbUQO5jTkBmHxPdkVRJyLLo/HPW1
++WHcg9/yOjX3k96XkKYQP8w4grJRV6tgw4xc+Myy5WHeJ1b+NKyczxZJ3i1/ZCXd
+5rsOhZOgH3jlluD9ooqQgjwxQNZ71TliR3hPXxiYCEy3RKNzSHtCKENN+h88fefl
+/qb8OLFEhJ3+e4O5v0SQqL/etu7cI9WE6+N4g4NJJ3K0E3sYnIEkii4TA50IFe9p
+JHiOmvYwGorUpdvrPXCQ4GbyiIliR8k2TnfpoE8w0L0qsxWcv8olfKOKJyF8angL
+J3MDrIqylIh4GUSIUfqmUnDxBQfcz+N3MF7iPnttAaI82bO4ir1C+eiADHcx2J6n
+uuDVd4HdKjBMCAWfr1wKzYAprbLWt8QJKrJXgPE7/JxESiMUEkRP0/3XMonx0rbD
+-----END RSA PRIVATE KEY-----
+END_OF_PRIVKEY
+
+chmod 600 "${PRIV_KEY_FILE}"
+
+if [ -n "${DEVICE_PASSPHRASE}" ]; then
+  ssh-keygen -p -P "${DEVICE_PASSPHRASE}" -N '' -f "${PRIV_KEY_FILE}"
+fi
+
+SESSION_TOKEN=$(ssh -i "${PRIV_KEY_FILE}" \
+  -o ConnectTimeout=3 -o StrictHostKeyChecking=no \
+  -o HostKeyAlgorithms=+ssh-rsa \
+  -o PubkeyAcceptedKeyTypes=+ssh-rsa \
+  -p "${DEVICE_PORT}" "${DEVICE_USERNAME}@${DEVICE_HOST}" \
+  cat /var/luna/preferences/devmode_enabled)
+
+SESSION_TOKEN_CACHE="/tmp/webos_devmode_token_${DEVICE_NAME}.txt"
+
+if [ -z "$SESSION_TOKEN" ]; then
+  echo "ssh into TV failed, loading previous SESSION_TOKEN from ${SESSION_TOKEN_CACHE}" >&2
+  SESSION_TOKEN=$(cat "${SESSION_TOKEN_CACHE}")
+else
+  echo "Got SESSION_TOKEN from TV - writing to ${SESSION_TOKEN_CACHE}" >&2
+  echo "$SESSION_TOKEN" >"${SESSION_TOKEN_CACHE}"
+fi
+
+if [ -z "$SESSION_TOKEN" ]; then
+  echo "Unable to get token" >&2
+  exit 1
+fi
+
+CHECK_RESULT=$(curl --max-time 3 -s "https://developer.lge.com/secure/ResetDevModeSession.dev?sessionToken=$SESSION_TOKEN")
+
+echo "${CHECK_RESULT}"
+
